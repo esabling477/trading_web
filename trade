@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GTC Trading Platform</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234A90E2' d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-2H9v-2h2v-2H9v-2h2V9h2v2h2v2h-2v2h2v2h-2v2h-2z'/%3E%3C/svg%3E" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'dark-bg': '#1e222d',
+            'dark-surface': '#2a3140',
+            'dark-border': '#3e4556',
+            'dark-text': '#d1d5db',
+            'dark-text-secondary': '#8f96a3',
+            'brand-green': '#7ac70c',
+            'brand-green-strong': '#69b300',
+            'brand-red': '#f6465d',
+          },
+          boxShadow: {
+            't-lg': '0 -6px 12px rgba(0,0,0,0.08)',
+          }
+        },
+      },
+    }
+  </script>
+
+  <!-- React, Recharts, Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-100 dark:bg-dark-bg">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const { ResponsiveContainer, ComposedChart, XAxis, YAxis, Tooltip, Bar, CartesianGrid } = Recharts;
+
+    // Icons (minimal for demo)
+    const Icon = ({ children }) => <span className="inline-flex items-center justify-center w-6 h-6">{children}</span>;
+
+    // Mock Data
+    const mockProducts = [
+      { id: 'XAUUSD', name: 'XAUUSD', flag: '🇺🇸', price: 3373.35, change: 0.34 },
+      { id: 'XAGUSD', name: 'XAGUSD', flag: '🇺🇸', price: 37.398, change: 1.03 },
+      { id: 'BTCUSD', name: 'BTCUSD', flag: '₿', price: 115031.5, change: 0.75 },
+      { id: 'ETHUSD', name: 'ETHUSD', flag: 'Ξ', price: 3707.43, change: 6.03 },
+      { id: 'LTCUSD', name: 'LTCUSD', flag: 'Ł', price: 119.93, change: 8.64 },
+      { id: 'AUDUSD', name: 'AUDUSD', flag: '🇦🇺', price: 0.64661, change: -0.04 },
+      { id: 'EURUSD', name: 'EURUSD', flag: '🇪🇺', price: 1.15673, change: -0.18 },
+      { id: 'BCHUSD', name: 'BCHUSD', flag: '₿', price: 560.5, change: 3.0 },
+      { id: 'USOIL', name: 'USOIL', flag: '🛢️', price: 66.207, change: -1.11 },
+    ];
+
+    const generateMockCandleData = (count = 120, basePrice = 3375) => {
+      const data = [];
+      let last = basePrice;
+      const now = Date.now();
+      for (let i = 0; i < count; i++) {
+        const t = now - (count - i) * 60 * 1000;
+        const open = last;
+        const delta = (Math.random() - 0.5) * 4;
+        const close = open + delta;
+        const high = Math.max(open, close) + Math.random() * 1.6;
+        const low = Math.min(open, close) - Math.random() * 1.6;
+        data.push({ time: t, open, high, low, close });
+        last = close;
+      }
+      return data;
+    };
+
+    // Header
+    const Header = ({ theme, toggleTheme }) => (
+      <header className="bg-white dark:bg-dark-surface shadow p-2 flex items-center justify-between sticky top-0 z-30">
+        <div className="flex items-center gap-2">
+          <div className="text-xl font-extrabold text-blue-600 dark:text-blue-400">GTC</div>
+          <button className="px-3 py-1.5 text-sm font-semibold bg-brand-green text-white rounded-md hover:bg-brand-green-strong">Product List</button>
+          <button className="px-3 py-1.5 text-sm font-semibold bg-lime-100 text-lime-700 rounded-md hover:bg-lime-200 dark:bg-gray-700 dark:text-dark-text">Submit Order</button>
+          <div className="hidden md:flex items-center gap-2 ml-2">
+            {['1M','5M','15M','30M','1H','1D'].map(t=> (
+              <button key={t} className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-bg">{t}</button>
+            ))}
+            <button className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-dark-border">Indicator</button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <button className="px-3 py-1.5 rounded border border-gray-200 dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-bg">Loan</button>
+          <button className="px-3 py-1.5 rounded border border-gray-200 dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-bg">Financial</button>
+          <select className="px-2 py-1 rounded border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface">
+            <option>English</option>
+            <option>简体中文</option>
+          </select>
+          <a href="#" className="hover:text-blue-500">Login</a>
+          <button className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700">Register</button>
+          <button onClick={toggleTheme} className="ml-2 px-2 py-1 rounded border border-gray-200 dark:border-dark-border">{theme==='dark'?'🌙':'☀️'}</button>
+        </div>
+      </header>
+    );
+
+    // Left tools column (icons only, decorative)
+    const LeftToolRail = () => (
+      <aside className="hidden md:flex flex-col items-center gap-6 w-10 py-6 text-gray-400 dark:text-dark-text-secondary">
+        {['📈','🔍','⚙️','📧','👁️','🗑️'].map((i,idx)=> (
+          <button key={idx} className="hover:text-blue-500" title="tool"><Icon>{i}</Icon></button>
+        ))}
+      </aside>
+    );
+
+    // Product list
+    const ProductList = ({ products, onSelect, selectedId }) => (
+      <div className="bg-white dark:bg-dark-surface rounded-md p-2 h-full">
+        <div className="flex items-center p-2 mb-2 bg-gray-100 dark:bg-dark-bg rounded">
+          <span className="mr-2">🔎</span>
+          <input placeholder="Select" className="bg-transparent w-full text-sm focus:outline-none"/>
+        </div>
+        <div className="space-y-2 pr-1 overflow-y-auto" style={{maxHeight:'calc(100vh - 180px)'}}>
+          {products.map(p=>{
+            const pos = p.change>=0;
+            return (
+              <button key={p.id} onClick={()=>onSelect(p)} className={`w-full flex items-center justify-between p-2 rounded border ${selectedId===p.id?'border-lime-500 bg-lime-50 dark:bg-gray-700':'border-transparent hover:bg-gray-100 dark:hover:bg-dark-bg'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl w-7 text-center">{p.flag}</div>
+                  <div>
+                    <div className="font-semibold text-sm">{p.name}</div>
+                    <div className={`${pos?'text-brand-green':'text-brand-red'} text-xs font-semibold`}>{p.price}</div>
+                  </div>
+                </div>
+                <span className={`px-3 py-1 text-xs font-bold rounded ${pos?'bg-brand-green text-white':'bg-brand-red text-white'}`}>{pos?'+':''}{p.change}%</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    );
+
+    // Chart bits
+    const CustomTooltip = ({ active, payload, label }) => {
+      if (active && payload && payload.length) {
+        const d = payload[0].payload;
+        return (
+          <div className="p-2 bg-dark-surface border border-dark-border rounded text-dark-text text-xs shadow-lg">
+            <p className="font-semibold mb-1">{new Date(label).toLocaleString()}</p>
+            <p>Open: <span className="font-mono text-white">{d.open.toFixed(2)}</span></p>
+            <p>High: <span className="font-mono text-white">{d.high.toFixed(2)}</span></p>
+            <p>Low: <span className="font-mono text-white">{d.low.toFixed(2)}</span></p>
+            <p>Close: <span className="font-mono text-white">{d.close.toFixed(2)}</span></p>
+          </div>
+        );
+      }
+      return null;
+    };
+
+    const CandleShape = (props) => {
+      const { x, y, width, height, low, high, open, close } = props;
+      if ([x,y,width,height].some(v => Number.isNaN(v))) return null;
+      const rising = close > open;
+      const color = rising ? '#69b300' : '#f6465d';
+      const wickX = x + width / 2;
+      // Recharts gives y as the top of bar and height as bar height for value; we draw wicks using provided low/high mapped positions
+      return (
+        <g>
+          {/* wick */}
+          <line x1={wickX} x2={wickX} y1={props.y + (props.height - (props.close - Math.min(close, open)))} y2={props.y - (props.high - Math.max(close, open))} stroke={color} strokeWidth="1" />
+          {/* body */}
+          <rect x={x} y={rising ? y + (height - Math.max(1, Math.abs(close - open))) : y} width={Math.max(1, width)} height={Math.max(1, Math.abs(close - open))} fill={color} />
+        </g>
+      );
+    };
+
+    const ChartHeader = ({ product }) => (
+      <div className="flex flex-wrap items-center justify-between p-3 border-b border-gray-200 dark:border-dark-border">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-bold">{product.name}</h2>
+          <div className="hidden md:flex items-center text-sm text-gray-500 dark:text-dark-text-secondary gap-4">
+            <span>Time: {new Date().toISOString().slice(0,16).replace('T',' ')}</span>
+            <span>Open: <b className="dark:text-dark-text">{product.price.toFixed(2)}</b></span>
+            <span>High: <b className="dark:text-dark-text">{(product.price*1.001).toFixed(2)}</b></span>
+            <span>Low: <b className="dark:text-dark-text">{(product.price*0.999).toFixed(2)}</b></span>
+            <span>Close: <b className="dark:text-dark-text">{(product.price*1.0005).toFixed(2)}</b></span>
+            <span>Volume: --</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 sm:gap-2">
+          {['1M','5M','15M','1H','1D'].map(t=> (
+            <button key={t} className="px-1 sm:px-2 py-1 text-xs rounded hover:bg-gray-200 dark:hover:bg-dark-bg">{t}</button>
+          ))}
+          <button title="Indicator" className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-dark-border">⚙️</button>
+          <button title="Search" className="hidden sm:inline-block px-2 py-1 text-xs rounded border border-gray-200 dark:border-dark-border">🔍</button>
+          <button title="Zoom in" className="hidden sm:inline-block px-2 py-1 text-xs rounded border border-gray-200 dark:border-dark-border">➕</button>
+          <button title="Zoom out" className="hidden sm:inline-block px-2 py-1 text-xs rounded border border-gray-200 dark:border-dark-border">➖</button>
+        </div>
+      </div>
+    );
+
+    const TradingChart = ({ product, data }) => {
+      const domain = [Math.min(...data.map(d=>d.low))-0.5, Math.max(...data.map(d=>d.high))+0.5];
+      return (
+        <div className="bg-white dark:bg-dark-surface rounded-lg shadow h-full flex flex-col">
+          <ChartHeader product={product} />
+          <div className="p-4 flex-grow h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
+                <XAxis dataKey="time" tickFormatter={(t)=>new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} tick={{ fill: 'rgb(143,150,163)', fontSize: 12 }} stroke="rgb(62,69,86)" />
+                <YAxis domain={domain} orientation="right" tickFormatter={(v)=>v.toFixed(2)} tick={{ fill: 'rgb(143,150,163)', fontSize: 12 }} stroke="rgb(62,69,86)" />
+                <Tooltip content={<CustomTooltip />} />
+                {/* ✅ IMPORTANT: pass function, not element */}
+                <Bar dataKey="close" shape={(props)=> <CandleShape {...props} />} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      );
+    };
+
+    // Order Panel (right)
+    const OrderPanel = ({ product }) => {
+      const [lots, setLots] = useState(0.01);
+      const [tab, setTab] = useState('Contract');
+      const [sl, setSL] = useState(false);
+      const [tp, setTP] = useState(false);
+      const changeLots = d => setLots(v => Math.max(0.01, +(v + d).toFixed(2)));
+      return (
+        <div className="bg-white dark:bg-dark-surface rounded-lg shadow p-4 flex flex-col gap-4 h-full">
+          <div className="p-4 bg-brand-green text-white rounded-lg">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-bold">VIP: <span className="font-normal">5</span></p>
+                <p className="text-xs opacity-90">Available funds</p>
+                <p className="text-3xl font-extrabold my-1">$152215.1307778</p>
+                <div className="text-xs opacity-90">Today: 38395.04 <span className="ml-1">▲0.62%</span></div>
+                <div className="text-xs opacity-90 mt-1">Credit score: 100 &nbsp; UID: 9210000</div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex border-b border-gray-200 dark:border-dark-border rounded overflow-hidden">
+              {['Contract','Future'].map(t=> (
+                <button key={t} onClick={()=>setTab(t)} className={`flex-1 py-2 text-sm font-semibold ${tab===t?'bg-brand-green text-white':'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-dark-text'}`}>{t}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="font-bold">{product.name}</span>
+            <span className={`${product.change>=0?'text-brand-green':'text-brand-red'} font-semibold`}>{product.price.toFixed(2)}</span>
+          </div>
+
+          <label className="text-xs text-gray-500 dark:text-dark-text-secondary">Market Price</label>
+          <div className="relative">
+            <select className="w-full p-2 bg-gray-100 dark:bg-dark-bg rounded border border-gray-200 dark:border-dark-border">
+              <option>Market Price</option>
+              <option>Limit</option>
+              <option>Stop</option>
+            </select>
+          </div>
+
+          {/* SL */}
+          <div className="flex justify-between items-center">
+            <label className="text-sm">Set Loss</label>
+            <button onClick={()=>setSL(s=>!s)} className={`w-12 h-6 rounded-full p-1 ${sl?'bg-blue-600':'bg-gray-300 dark:bg-gray-600'}`}>
+              <div className={`bg-white h-4 w-4 rounded-full shadow-md transform duration-300 ${sl?'translate-x-6':''}`}></div>
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="px-2 py-1 bg-gray-200 dark:bg-dark-border rounded">-</button>
+            <input disabled={!sl} value="0" className="flex-1 p-2 text-right bg-gray-100 dark:bg-dark-bg rounded border border-gray-200 dark:border-dark-border"/>
+            <button className="px-2 py-1 bg-gray-200 dark:bg-dark-border rounded">+</button>
+          </div>
+
+          {/* TP */}
+          <div className="flex justify-between items-center">
+            <label className="text-sm">Set Profit</label>
+            <button onClick={()=>setTP(s=>!s)} className={`w-12 h-6 rounded-full p-1 ${tp?'bg-blue-600':'bg-gray-300 dark:bg-gray-600'}`}>
+              <div className={`bg-white h-4 w-4 rounded-full shadow-md transform duration-300 ${tp?'translate-x-6':''}`}></div>
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="px-2 py-1 bg-gray-200 dark:bg-dark-border rounded">-</button>
+            <input disabled={!tp} value="0" className="flex-1 p-2 text-right bg-gray-100 dark:bg-dark-bg rounded border border-gray-200 dark:border-dark-border"/>
+            <button className="px-2 py-1 bg-gray-200 dark:bg-dark-border rounded">+</button>
+          </div>
+
+          {/* Lots */}
+          <div>
+            <label className="text-sm">Lots(Step: 0.01)</label>
+            <div className="flex items-center mt-1">
+              <button onClick={()=>changeLots(-0.01)} className="px-4 py-2 bg-gray-200 dark:bg-dark-border rounded-l">-</button>
+              <input value={lots} onChange={e=>setLots(parseFloat(e.target.value)||0.01)} className="w-full p-2 text-center bg-gray-100 dark:bg-dark-bg border-t border-b border-gray-200 dark:border-dark-border" />
+              <button onClick={()=>changeLots(0.01)} className="px-4 py-2 bg-gray-200 dark:bg-dark-border rounded-r">+</button>
+            </div>
+          </div>
+
+          <div className="text-xs space-y-1 text-gray-500 dark:text-dark-text-secondary">
+            <div className="flex justify-between"><span>Each Lots</span><span>1 Lots = 1000 {product.name}</span></div>
+            <div className="flex justify-between"><span>Estimated Handling Fee</span><span>{(0.3 * lots).toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Estimated Margin</span><span>{(10 / 0.01 * lots).toFixed(2)}</span></div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mt-auto">
+            <button className="w-full py-3 bg-brand-green text-white font-bold rounded-lg hover:bg-brand-green-strong">Buy</button>
+            <button className="w-full py-3 bg-brand-red text-white font-bold rounded-lg hover:opacity-90">Sell</button>
+          </div>
+        </div>
+      );
+    };
+
+    // Positions table
+    const mockPositions = [
+      { id: '#184607', product: 'AMZN', direction: 'Buy', lots: 1, lowerPrice: 212.241222, currentPrice: 211.63, setProfit: 0, setLoss: 0, handlingFee: 0.01, margin: 212.241222, profit: -61.1222, openTime: '2025-08-04 15:06:32' },
+      { id: '#184608', product: 'TSLA', direction: 'Sell', lots: 0.5, lowerPrice: 1.158900, currentPrice: 1.16, setProfit: 1.16, setLoss: 1.15, handlingFee: 0.005, margin: 100, profit: 8.5, openTime: '2025-08-04 14:32:11' }
+    ];
+
+    const PositionsPanel = ({ positions }) => {
+      const [tab, setTab] = useState('Position');
+      return (
+        <div className="bg-white dark:bg-dark-surface rounded-lg shadow p-4">
+          <div className="flex border-b border-gray-200 dark:border-dark-border mb-4">
+            {['Position','Pending Orders','History'].map(t => (
+              <button key={t} onClick={()=>setTab(t)} className={`px-4 py-2 text-sm font-semibold ${tab===t?'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400':'text-gray-500 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-bg'}`}>{t}</button>
+            ))}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1200px]">
+              <thead>
+                <tr className="text-xs text-left text-gray-500 dark:text-dark-text-secondary border-b border-gray-200 dark:border-dark-border">
+                  {['Transaction','Direction','Lots','Entry Price','Current price','Set Profit','Set Loss','Fee','Margin','Profit','Open time','Operation'].map(h => <th key={h} className="p-3 font-normal whitespace-nowrap">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {tab==='Position' && positions.map(p => (
+                  <tr key={p.id} className="text-sm border-b border-gray-200 dark:border-dark-border">
+                    <td className="p-3">{p.id}</td>
+                    <td className="p-3"><span className={`px-2 py-1 rounded text-white text-xs ${p.direction==='Buy'?'bg-brand-green':'bg-brand-red'}`}>{p.direction}</span></td>
+                    <td className="p-3">{p.lots}</td>
+                    <td className="p-3">{p.lowerPrice.toFixed(6)}</td>
+                    <td className="p-3">{p.currentPrice.toFixed(2)}</td>
+                    <td className="p-3">{p.setProfit}</td>
+                    <td className="p-3">{p.setLoss}</td>
+                    <td className="p-3">{p.handlingFee}</td>
+                    <td className="p-3">{p.margin.toFixed(6)}</td>
+                    <td className={`p-3 font-semibold ${p.profit>=0?'text-brand-green':'text-brand-red'}`}>{p.profit.toFixed(4)}</td>
+                    <td className="p-3 whitespace-nowrap">{p.openTime}</td>
+                    <td className="p-3 whitespace-nowrap"><button className="text-blue-500 hover:underline text-xs">TP/SL</button><button className="ml-2 text-blue-500 hover:underline text-xs">Close position</button></td>
+                  </tr>
+                ))}
+                {tab!=='Position' && (
+                  <tr><td colSpan={12} className="text-center py-10 text-gray-500 dark:text-dark-text-secondary">No data available for {tab}.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // App
+    const App = () => {
+      const [theme, setTheme] = useState('dark');
+      const [selected, setSelected] = useState(mockProducts[0]);
+      const [candle, setCandle] = useState(generateMockCandleData(150, mockProducts[0].price));
+
+      useEffect(()=>{
+        document.documentElement.classList.toggle('dark', theme==='dark');
+      },[theme]);
+
+      const onPick = (p) => {
+        setSelected(p);
+        setCandle(generateMockCandleData(150, p.price));
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col text-gray-800 dark:text-dark-text">
+          <Header theme={theme} toggleTheme={()=> setTheme(t=> t==='dark'?'light':'dark')} />
+
+          <main className="flex gap-3 p-3 flex-grow overflow-hidden">
+            <LeftToolRail />
+
+            <section className="w-[280px] hidden lg:block h-full overflow-hidden">
+              <ProductList products={mockProducts} onSelect={onPick} selectedId={selected.id} />
+            </section>
+
+            <section className="flex-grow flex flex-col gap-3 min-w-0 h-full">
+              <div className="flex-grow h-3/5 min-h-[320px]"><TradingChart product={selected} data={candle} /></div>
+              <div className="flex-shrink-0 h-2/5 overflow-y-auto"><PositionsPanel positions={mockPositions} /></div>
+            </section>
+
+            <section className="w-[340px] hidden xl:block h-full overflow-hidden">
+              <OrderPanel product={selected} />
+            </section>
+          </main>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
